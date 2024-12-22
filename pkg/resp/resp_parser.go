@@ -1,4 +1,4 @@
-package resp_parser
+package resp
 
 import (
 	"errors"
