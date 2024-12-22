@@ -1,0 +1,44 @@
+package resp_parser
+
+import (
+	"testing"
+)
+
+type testCase struct {
+	input    string
+	expected any
+	hasError bool
+}
+
+func TestDeserializeRESP(t *testing.T) {
+	// Define test cases
+	testCases := []testCase{
+		{input: "+OK\r\n", expected: "OK", hasError: false},
+		{input: "-Error message\r\n", expected: "Error message", hasError: false},
+		{input: "$0\r\n\r\n", expected: "", hasError: false},
+		{input: "$-1\r\n", expected: nil, hasError: false},
+		{input: "+hello world\r\n", expected: "hello world", hasError: false},
+		// Add more test cases as you implement additional RESP types
+		// Invalid RESP cases
+		{input: "+NoEndLine", expected: nil, hasError: true},
+		{input: "", expected: nil, hasError: true},
+	}
+
+	// Run tests
+	for _, tc := range testCases {
+		result, err := DeserializeRESP(tc.input)
+
+		if tc.hasError {
+			if err == nil {
+				t.Errorf("expected error for input %q, got nil", tc.input)
+			}
+		} else {
+			if err != nil {
+				t.Errorf("unexpected error for input %q: %v", tc.input, err)
+			}
+			if result != tc.expected {
+				t.Errorf("expected %v for input %q, got %v", tc.expected, tc.input, result)
+			}
+		}
+	}
+}
