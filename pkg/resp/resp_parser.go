@@ -97,9 +97,8 @@ func parseArray(s string) ([]any, error) {
 		return nil, nil
 	}
 
-	var elements []any
+	elements := make([]any, 0, count)
 	remaining := s[endOfCount+2:]
-
 	for i := 0; i < count; i++ {
 		element, err := DeserializeRESP(remaining)
 		if err != nil {
@@ -107,16 +106,65 @@ func parseArray(s string) ([]any, error) {
 		}
 		elements = append(elements, element)
 
-		nextStart := strings.Index(remaining, "\r\n") + 2
-		if nextStart == 1 {
-			return nil, errors.New("malformed RESP Array")
-		}
-		remaining = remaining[nextStart:]
+		// Adjust remaining to skip the parsed element
+		pos := strings.Index(remaining, "\r\n") + 2
+		remaining = remaining[pos:]
 	}
 
 	return elements, nil
 }
 
-func SerializeRESP() {
-	// TODO: Implement serialization logic
+func SerializeRESP(data any) string {
+	switch v := data.(type) {
+	case string:
+		return serializeSimpleString(v)
+	case int:
+		return serializeSimpleInteger(v)
+	case []any:
+		return serializeArray(v)
+	case error:
+		return serializeError(v.Error())
+	case []byte:
+		return serializeBulkString(string(v))
+	case nil:
+		return serializeNull()
+	default:
+		return serializeError("unsupported RESP type")
+	}
+}
+
+func serializeSimpleString(v string) string {
+	return "+" + v + "\r\n"
+}
+
+func serializeSimpleInteger(v int) string {
+	return ":" + strconv.Itoa(v) + "\r\n"
+}
+
+func serializeError(s string) string {
+	return "-" + s + "\r\n"
+}
+
+func serializeNull() string {
+	return "$-1\r\n"
+}
+
+func serializeBulkString(s string) string {
+	if s == "" {
+		return serializeNull()
+	}
+	return "$" + strconv.Itoa(len(s)) + "\r\n" + s + "\r\n"
+}
+
+func serializeArray(a []any) string {
+	var sb strings.Builder
+	sb.WriteString("*")
+	sb.WriteString(strconv.Itoa(len(a)))
+	sb.WriteString("\r\n")
+
+	for _, element := range a {
+		sb.WriteString(SerializeRESP(element))
+	}
+
+	return sb.String()
 }
