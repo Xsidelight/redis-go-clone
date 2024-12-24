@@ -1,0 +1,26 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch Redis Clone",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/main.go",
+            "args": [],
+            "env": {},
+            "showLog": true
+        },
+        {
+            "name": "Launch with Custom Port",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/main.go",
+            "args": ["--port", "6380"],
+            "env": {
+                "REDIS_PORT": "6380"
+            }
+        }
+    ]
+}

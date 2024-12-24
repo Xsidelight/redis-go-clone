@@ -7,10 +7,6 @@ import (
 )
 
 func StartServer() {
-	//err := http.ListenAndServe(":6379", nil)
-	//if err != nil {
-	//	panic("error starting the server")
-	//}
 	listener, err := net.Listen("tcp", ":6379")
 	if err != nil {
 		log.Fatalf("Failed to start server: %v", err)
