@@ -2,6 +2,7 @@ package resp
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 )
 
@@ -19,6 +20,7 @@ func TestDeserializeRESP(t *testing.T) {
 		{input: "$11\r\nHello World\r\n", expected: "Hello World", hasError: false},
 		{input: "$-1\r\n", expected: nil, hasError: false},
 		{input: "+hello world\r\n", expected: "hello world", hasError: false},
+		{input: "*3\r\n$3\r\nset\r\n$5\r\ntestv\r\n$4\r\n1234\r\n", expected: []any{"set", "testv", "1234"}, hasError: false},
 		{input: "+NoEndLine", expected: nil, hasError: true},
 		{input: "", expected: nil, hasError: true},
 	}
@@ -34,12 +36,13 @@ func TestDeserializeRESP(t *testing.T) {
 			if err != nil {
 				t.Errorf("unexpected error for input %q: %v", tc.input, err)
 			}
-			if result != tc.expected {
+			if !reflect.DeepEqual(result, tc.expected) {
 				t.Errorf("expected %v for input %q, got %v", tc.expected, tc.input, result)
 			}
 		}
 	}
 }
+
 func TestSerializeRESP(t *testing.T) {
 	testCases := []struct {
 		input    any

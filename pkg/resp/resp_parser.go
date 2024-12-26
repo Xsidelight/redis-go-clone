@@ -6,91 +6,86 @@ import (
 	"strings"
 )
 
-func DeserializeRESP(s string) (any, error) {
-	if strings.HasPrefix(s, "+") {
-		return parseSimpleString(s)
-	} else if strings.HasPrefix(s, "-") {
-		return parseError(s)
-	} else if strings.HasPrefix(s, ":") {
-		return parseSimpleInteger(s)
-	} else if strings.HasPrefix(s, "$") {
-		return parseBulkString(s)
-	} else if strings.HasPrefix(s, "*") {
-		return parseArray(s)
+// DeserializeRESP parses a RESP-encoded string and returns the corresponding Go value.
+func DeserializeRESP(input string) (any, error) {
+	switch {
+	case strings.HasPrefix(input, "+"):
+		return parseSimpleString(input)
+	case strings.HasPrefix(input, "-"):
+		return parseError(input)
+	case strings.HasPrefix(input, ":"):
+		return parseInteger(input)
+	case strings.HasPrefix(input, "$"):
+		return parseBulkString(input)
+	case strings.HasPrefix(input, "*"):
+		return parseArray(input)
+	default:
+		return nil, errors.New("unsupported RESP type")
 	}
-	return nil, errors.New("unsupported RESP type")
 }
 
-func parseSimpleString(s string) (string, error) {
-	if !strings.HasSuffix(s, "\r\n") {
-		return "", errors.New("invalid RESP format for Simple String")
+// parseSimpleString parses a RESP Simple String.
+func parseSimpleString(input string) (string, error) {
+	if !strings.HasSuffix(input, "\r\n") {
+		return "", errors.New("invalid RESP format for simple string")
 	}
-	return strings.TrimSuffix(s[1:], "\r\n"), nil
+	return strings.TrimSuffix(input[1:], "\r\n"), nil
 }
 
-func parseError(s string) (string, error) {
-	if !strings.HasSuffix(s, "\r\n") {
-		return "", errors.New("invalid RESP format for Error")
+// parseError parses a RESP Error.
+func parseError(input string) (string, error) {
+	if !strings.HasSuffix(input, "\r\n") {
+		return "", errors.New("invalid RESP format for error")
 	}
-	return strings.TrimSuffix(s[1:], "\r\n"), nil
+	return strings.TrimSuffix(input[1:], "\r\n"), nil
 }
 
-func parseSimpleInteger(s string) (int, error) {
-	if !strings.HasSuffix(s, "\r\n") {
-		return 0, errors.New("invalid RESP format for Error")
+// parseInteger parses a RESP Integer.
+func parseInteger(input string) (int, error) {
+	if !strings.HasSuffix(input, "\r\n") {
+		return 0, errors.New("invalid RESP format for integer")
 	}
-
-	s = strings.TrimSuffix(s[1:], "\r\n")
-	r, err := strconv.Atoi(s)
+	valueStr := strings.TrimSuffix(input[1:], "\r\n")
+	value, err := strconv.Atoi(valueStr)
 	if err != nil {
-		return 0, errors.New("error parsing to integer")
+		return 0, errors.New("invalid integer value")
 	}
-	return r, nil
+	return value, nil
 }
 
-func parseBulkString(s string) (any, error) {
-	if !strings.HasPrefix(s, "$") {
-		return nil, errors.New("invalid RESP Bulk String format")
+// parseBulkString parses a RESP Bulk String.
+func parseBulkString(input string) (any, error) {
+	parts := strings.SplitN(input, "\r\n", 2)
+	if len(parts) < 2 {
+		return nil, errors.New("invalid RESP format for bulk string")
 	}
 
-	endOfLength := strings.Index(s, "\r\n")
-	if endOfLength == -1 {
-		return nil, errors.New("invalid RESP Bulk String format")
-	}
-
-	lengthStr := s[1:endOfLength]
-	length, err := strconv.Atoi(lengthStr)
+	length, err := strconv.Atoi(parts[0][1:])
 	if err != nil {
-		return nil, errors.New("invalid Bulk String length")
+		return nil, errors.New("invalid bulk string length")
 	}
 
 	if length == -1 {
 		return nil, nil
 	}
 
-	startOfContent := endOfLength + 2
-	endOfContent := startOfContent + length
-	if endOfContent+2 > len(s) || !strings.HasSuffix(s[endOfContent:endOfContent+2], "\r\n") {
-		return nil, errors.New("invalid RESP Bulk String content")
+	if len(parts[1]) < length+2 || !strings.HasSuffix(parts[1][:length+2], "\r\n") {
+		return nil, errors.New("invalid bulk string content")
 	}
 
-	return s[startOfContent:endOfContent], nil
+	return parts[1][:length], nil
 }
 
-func parseArray(s string) ([]any, error) {
-	if !strings.HasPrefix(s, "*") {
-		return nil, errors.New("invalid RESP Array format")
+// parseArray parses a RESP Array.
+func parseArray(input string) ([]any, error) {
+	header := strings.SplitN(input, "\r\n", 2)
+	if len(header) < 2 {
+		return nil, errors.New("invalid RESP format for array")
 	}
 
-	endOfCount := strings.Index(s, "\r\n")
-	if endOfCount == -1 {
-		return nil, errors.New("invalid RESP Array format")
-	}
-
-	countStr := s[1:endOfCount]
-	count, err := strconv.Atoi(countStr)
-	if err != nil {
-		return nil, errors.New("invalid Array count")
+	count, err := strconv.Atoi(header[0][1:])
+	if err != nil || count < -1 {
+		return nil, errors.New("invalid array count")
 	}
 
 	if count == -1 {
@@ -98,7 +93,8 @@ func parseArray(s string) ([]any, error) {
 	}
 
 	elements := make([]any, 0, count)
-	remaining := s[endOfCount+2:]
+	remaining := header[1]
+
 	for i := 0; i < count; i++ {
 		element, err := DeserializeRESP(remaining)
 		if err != nil {
@@ -106,9 +102,17 @@ func parseArray(s string) ([]any, error) {
 		}
 		elements = append(elements, element)
 
-		// Adjust remaining to skip the parsed element
-		pos := strings.Index(remaining, "\r\n") + 2
-		remaining = remaining[pos:]
+		// Adjust the remaining input based on parsed element
+		switch v := element.(type) {
+		case string:
+			remaining = strings.TrimPrefix(remaining, serializeBulkString(v))
+		case []any:
+			remaining = strings.TrimPrefix(remaining, serializeArray(v))
+		case int:
+			remaining = strings.TrimPrefix(remaining, serializeInteger(v))
+		default:
+			return nil, errors.New("unsupported element type in array")
+		}
 	}
 
 	return elements, nil
@@ -119,12 +123,15 @@ func SerializeRESP(data any) string {
 	case string:
 		return serializeSimpleString(v)
 	case int:
-		return serializeSimpleInteger(v)
+		return serializeInteger(v)
 	case []any:
 		return serializeArray(v)
 	case error:
 		return serializeError(v.Error())
 	case []byte:
+		if len(v) == 0 {
+			return serializeNull()
+		}
 		return serializeBulkString(string(v))
 	case nil:
 		return serializeNull()
@@ -133,38 +140,41 @@ func SerializeRESP(data any) string {
 	}
 }
 
-func serializeSimpleString(v string) string {
-	return "+" + v + "\r\n"
+func serializeSimpleString(value string) string {
+	return "+" + value + "\r\n"
 }
 
-func serializeSimpleInteger(v int) string {
-	return ":" + strconv.Itoa(v) + "\r\n"
+func serializeInteger(value int) string {
+	return ":" + strconv.Itoa(value) + "\r\n"
 }
 
-func serializeError(s string) string {
-	return "-" + s + "\r\n"
+func serializeError(message string) string {
+	return "-" + message + "\r\n"
 }
 
 func serializeNull() string {
 	return "$-1\r\n"
 }
 
-func serializeBulkString(s string) string {
-	if s == "" {
+func serializeBulkString(value string) string {
+	if value == "" {
 		return serializeNull()
 	}
-	return "$" + strconv.Itoa(len(s)) + "\r\n" + s + "\r\n"
+	return "$" + strconv.Itoa(len(value)) + "\r\n" + value + "\r\n"
 }
 
-func serializeArray(a []any) string {
-	var sb strings.Builder
-	sb.WriteString("*")
-	sb.WriteString(strconv.Itoa(len(a)))
-	sb.WriteString("\r\n")
-
-	for _, element := range a {
-		sb.WriteString(SerializeRESP(element))
+func serializeArray(array []any) string {
+	if len(array) == 0 {
+		return "*0\r\n"
 	}
 
+	var sb strings.Builder
+	sb.WriteString("*")
+	sb.WriteString(strconv.Itoa(len(array)))
+	sb.WriteString("\r\n")
+
+	for _, element := range array {
+		sb.WriteString(SerializeRESP(element))
+	}
 	return sb.String()
 }

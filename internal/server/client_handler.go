@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"redis-go-clone/pkg/resp"
@@ -34,6 +33,9 @@ func HandleClient(conn net.Conn) {
 	}
 }
 
+// Global map to store data
+var storedData = make(map[string]any)
+
 func processCommand(command any) string {
 	// Ensure the command is an array
 	cmdArray, ok := command.([]any)
@@ -50,17 +52,32 @@ func processCommand(command any) string {
 
 	// Handle supported commands
 	switch cmdName {
-	case "PING":
-		return "+PONG\r\n"
-	case "ECHO":
-		if len(cmdArray) < 2 {
-			return "-ERR missing argument for ECHO\r\n"
+	case "SET":
+		if len(cmdArray) < 3 {
+			return "-ERR missing argument for SET\r\n"
 		}
-		msg, ok := cmdArray[1].(string)
+		key, ok := cmdArray[1].(string)
 		if !ok {
-			return "-ERR invalid argument for ECHO\r\n"
+			return "-ERR invalid argument for SET\r\n"
 		}
-		return fmt.Sprintf("$%d\r\n%s\r\n", len(msg), msg)
+		value := cmdArray[2]
+		storedData[key] = value
+		log.Printf("Stored data: %v", storedData[key])
+		return "+OK\r\n"
+	case "GET":
+		if len(cmdArray) < 2 {
+			return "-ERR missing argument for GET\r\n"
+		}
+		key, ok := cmdArray[1].(string)
+		if !ok {
+			return "-ERR invalid argument for GET\r\n"
+		}
+		value, ok := storedData[key]
+		log.Printf("Retrieved data key: %v value: %v ", key, value)
+		if !ok {
+			return "$-1\r\n"
+		}
+		return resp.SerializeRESP(value)
 	default:
 		return "-ERR unknown command\r\n"
 	}
