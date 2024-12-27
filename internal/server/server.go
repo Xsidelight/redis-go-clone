@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"redis-go-clone/internal/handler"
 )
 
 func StartServer() {
@@ -28,6 +29,6 @@ func StartServer() {
 			continue
 		}
 
-		go HandleClient(conn)
+		go handler.HandleClient(conn)
 	}
 }

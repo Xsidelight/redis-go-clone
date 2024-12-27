@@ -1,4 +1,4 @@
-package server
+package handler
 
 import (
 	"log"
@@ -7,6 +7,9 @@ import (
 	"strings"
 	"sync"
 )
+
+var storedData = make(map[string]any)
+var mu sync.RWMutex
 
 func HandleClient(conn net.Conn) {
 	defer conn.Close()
@@ -33,10 +36,6 @@ func HandleClient(conn net.Conn) {
 		conn.Write([]byte(response))
 	}
 }
-
-// Global map to store data
-var storedData = make(map[string]any)
-var mu sync.RWMutex
 
 func processCommand(command any) string {
 	// Ensure the command is an array
