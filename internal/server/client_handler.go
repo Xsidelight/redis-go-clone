@@ -5,6 +5,7 @@ import (
 	"net"
 	"redis-go-clone/pkg/resp"
 	"strings"
+	"sync"
 )
 
 func HandleClient(conn net.Conn) {
@@ -35,6 +36,7 @@ func HandleClient(conn net.Conn) {
 
 // Global map to store data
 var storedData = make(map[string]any)
+var mu sync.RWMutex
 
 func processCommand(command any) string {
 	// Ensure the command is an array
@@ -60,9 +62,11 @@ func processCommand(command any) string {
 		if !ok {
 			return "-ERR invalid argument for SET\r\n"
 		}
+		mu.Lock()
+		defer mu.Unlock()
 		value := cmdArray[2]
 		storedData[key] = value
-		log.Printf("Stored data: %v", storedData[key])
+
 		return "+OK\r\n"
 	case "GET":
 		if len(cmdArray) < 2 {
@@ -72,8 +76,11 @@ func processCommand(command any) string {
 		if !ok {
 			return "-ERR invalid argument for GET\r\n"
 		}
+
+		mu.Lock()
+		defer mu.Unlock()
 		value, ok := storedData[key]
-		log.Printf("Retrieved data key: %v value: %v ", key, value)
+
 		if !ok {
 			return "$-1\r\n"
 		}
