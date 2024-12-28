@@ -3,6 +3,7 @@ package handler
 import (
 	"log"
 	"net"
+	"redis-go-clone/cmd/config"
 	"redis-go-clone/internal/model"
 	"redis-go-clone/internal/redis_command"
 	"redis-go-clone/pkg/resp"
@@ -10,10 +11,18 @@ import (
 	"sync"
 )
 
+type ClientHandler struct {
+	config *config.Config
+}
+
+func NewClientHandler(config *config.Config) *ClientHandler {
+	return &ClientHandler{config: config}
+}
+
 var storedData = make(map[string]model.StoredData)
 var mu sync.RWMutex
 
-func HandleClient(conn net.Conn) {
+func (h *ClientHandler) HandleClient(conn net.Conn) {
 	defer conn.Close()
 
 	buffer := make([]byte, 4096)

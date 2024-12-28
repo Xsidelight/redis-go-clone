@@ -4,10 +4,19 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"redis-go-clone/cmd/config"
 	"redis-go-clone/internal/handler"
+	"redis-go-clone/internal/manager"
+	"time"
 )
 
 func StartServer() {
+	config := config.NewConfig()
+
+	manager.StartBackgroundExpiryManager(config.DB, config.Lock, 1*time.Second)
+
+	h := handler.NewClientHandler(config)
+
 	listener, err := net.Listen("tcp", ":6379")
 	if err != nil {
 		log.Fatalf("Failed to start server: %v", err)
@@ -29,6 +38,6 @@ func StartServer() {
 			continue
 		}
 
-		go handler.HandleClient(conn)
+		go h.HandleClient(conn)
 	}
 }
