@@ -65,7 +65,7 @@ func TestSerializeRESP(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		result := SerializeRESP(tc.input)
+		result := SerializeRESP(tc.input, false)
 		if result != tc.expected {
 			t.Errorf("SerializeRESP(%v) = %q, expected %q", tc.input, result, tc.expected)
 		}

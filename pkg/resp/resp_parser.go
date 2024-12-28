@@ -118,9 +118,13 @@ func parseArray(input string) ([]any, error) {
 	return elements, nil
 }
 
-func SerializeRESP(data any) string {
+func SerializeRESP(data any, isGet bool) string {
 	switch v := data.(type) {
 	case string:
+		if isGet {
+			return serializeBulkString(v)
+		}
+
 		return serializeSimpleString(v)
 	case int:
 		return serializeInteger(v)
@@ -174,7 +178,7 @@ func serializeArray(array []any) string {
 	sb.WriteString("\r\n")
 
 	for _, element := range array {
-		sb.WriteString(SerializeRESP(element))
+		sb.WriteString(SerializeRESP(element, false))
 	}
 	return sb.String()
 }
