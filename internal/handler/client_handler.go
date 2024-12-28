@@ -68,6 +68,10 @@ func processCommand(command any) string {
 		return redis_command.Set(cmdArray, storedData, &mu)
 	case "GET":
 		return redis_command.Get(cmdArray, storedData, &mu)
+	case "EXIST":
+		return redis_command.Exist(cmdArray, storedData, &mu)
+	case "DEL":
+		return redis_command.Del(cmdArray, storedData, &mu)
 	default:
 		return "-ERR unknown command\r\n"
 	}
