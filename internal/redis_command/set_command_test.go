@@ -2,6 +2,7 @@ package redis_command
 
 import (
 	"redis-go-clone/internal/model"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -20,7 +21,7 @@ func TestSet(t *testing.T) {
 		},
 		{
 			name:     "too few arguments",
-			cmdArray: []any{"SET", "key"},
+			cmdArray: []any{"SET", "key", "value", "ex"},
 			want:     "-ERR wrong number of arguments for SET\r\n",
 		},
 		{
@@ -30,22 +31,22 @@ func TestSet(t *testing.T) {
 		},
 		{
 			name:     "set with EX",
-			cmdArray: []any{"SET", "key", "value", "EX", int64(60)},
+			cmdArray: []any{"SET", "key", "value", "EX", "60"},
 			want:     "+OK\r\n",
 		},
 		{
 			name:     "set with PX",
-			cmdArray: []any{"SET", "key", "value", "PX", int64(1000)},
+			cmdArray: []any{"SET", "key", "value", "PX", "1000"},
 			want:     "+OK\r\n",
 		},
 		{
 			name:     "set with EXAT",
-			cmdArray: []any{"SET", "key", "value", "EXAT", time.Now().Add(time.Hour).Unix()},
+			cmdArray: []any{"SET", "key", "value", "EXAT", "1000"},
 			want:     "+OK\r\n",
 		},
 		{
 			name:     "set with invalid expiry type",
-			cmdArray: []any{"SET", "key", "value", "INVALID", int64(60)},
+			cmdArray: []any{"SET", "key", "value", "INVALID", "60"},
 			want:     "-ERR unsupported expiry option\r\n",
 		},
 		{
@@ -79,46 +80,69 @@ func TestParseExpiryOptions(t *testing.T) {
 			name:        "too few options",
 			options:     []any{"EX"},
 			wantErr:     true,
-			errContains: "invalid expiry arguments",
+			errContains: "wrong number of arguments for SET",
 		},
 		{
 			name:        "invalid option type",
-			options:     []any{123, int64(60)},
+			options:     []any{123, "60"},
 			wantErr:     true,
 			errContains: "invalid expiry option type",
 		},
 		{
 			name:        "invalid expiry value",
-			options:     []any{"EX", "60"},
+			options:     []any{"EX", "invalid"},
 			wantErr:     true,
 			errContains: "invalid expiry value",
 		},
 		{
 			name:    "valid EX option",
-			options: []any{"EX", int64(60)},
+			options: []any{"EX", "60"},
 			wantErr: false,
 		},
 		{
 			name:    "valid PX option",
-			options: []any{"PX", int64(1000)},
+			options: []any{"PX", "1000"},
 			wantErr: false,
 		},
 		{
 			name:    "valid EXAT option",
-			options: []any{"EXAT", futureTime},
+			options: []any{"EXAT", strconv.FormatInt(futureTime, 10)},
+			wantErr: false,
+		},
+		{
+			name:    "valid PXAT option",
+			options: []any{"PXAT", strconv.FormatInt(futureTime*1000, 10)},
 			wantErr: false,
 		},
 		{
 			name:        "invalid EXAT value",
-			options:     []any{"EXAT", int64(-1)},
+			options:     []any{"EXAT", "-1"},
 			wantErr:     true,
 			errContains: "invalid Unix time for EXAT",
 		},
 		{
+			name:        "set with negative EX",
+			options:     []any{"SET", "key", "value", "EX", "-60"},
+			wantErr:     true,
+			errContains: "invalid expiry value",
+		},
+		{
+			name:        "set with negative PX",
+			options:     []any{"SET", "key", "value", "PX", "-1000"},
+			wantErr:     true,
+			errContains: "invalid expiry value",
+		},
+		{
 			name:        "invalid PXAT value",
-			options:     []any{"PXAT", int64(-1)},
+			options:     []any{"PXAT", "-1"},
 			wantErr:     true,
 			errContains: "invalid Unix time for PXAT",
+		},
+		{
+			name:        "unsupported expiry option",
+			options:     []any{"UNKNOWN", "60"},
+			wantErr:     true,
+			errContains: "unsupported expiry option",
 		},
 	}
 

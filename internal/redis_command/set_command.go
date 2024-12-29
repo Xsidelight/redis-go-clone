@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"redis-go-clone/internal/model"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -39,16 +41,22 @@ func Set(cmdArray []any, storedData map[string]model.StoredData, mu *sync.RWMute
 
 func parseExpiryOptions(options []any) (int64, error) {
 	if len(options) < 2 {
-		return 0, errors.New("invalid expiry arguments")
+		return 0, errors.New("wrong number of arguments for SET")
 	}
 
-	optionType, ok := options[0].(string)
+	opt, ok := options[0].(string)
 	if !ok {
 		return 0, errors.New("invalid expiry option type")
 	}
+	optionType := strings.ToUpper(opt)
 
-	expiryValue, ok := options[1].(int64)
+	ev, ok := options[1].(string)
 	if !ok {
+		return 0, errors.New("invalid expiry value")
+	}
+
+	expiryValue, err := strconv.ParseInt(ev, 10, 64)
+	if err != nil {
 		return 0, errors.New("invalid expiry value")
 	}
 
