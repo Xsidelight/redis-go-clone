@@ -72,6 +72,14 @@ func processCommand(command any) string {
 		return redis_command.Exist(cmdArray, storedData, &mu)
 	case "DEL":
 		return redis_command.Del(cmdArray, storedData, &mu)
+	case "LPUSH":
+		return redis_command.LPush(cmdArray, storedData, &mu)
+	case "RPUSH":
+		return redis_command.RPush(cmdArray, storedData, &mu)
+	case "INCR":
+		return redis_command.Incr(cmdArray, storedData, &mu)
+	case "DECR":
+		return redis_command.Decr(cmdArray, storedData, &mu)
 	default:
 		return "-ERR unknown command\r\n"
 	}
