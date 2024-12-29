@@ -16,13 +16,11 @@ func Exist(cmdArray []any, storedData map[string]model.StoredData, mu *sync.RWMu
 	}
 
 	mu.RLock()
-	_, found := storedData[key]
-	mu.RUnlock()
+	defer mu.RUnlock()
 
-	if found {
+	if _, found := storedData[key]; found {
 		return ":1\r\n"
 	}
 
 	return ":0\r\n"
-
 }
