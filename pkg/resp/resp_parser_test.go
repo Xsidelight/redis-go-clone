@@ -20,9 +20,15 @@ func TestDeserializeRESP(t *testing.T) {
 		{input: "$11\r\nHello World\r\n", expected: "Hello World", hasError: false},
 		{input: "$-1\r\n", expected: nil, hasError: false},
 		{input: "+hello world\r\n", expected: "hello world", hasError: false},
-		{input: "*3\r\n$3\r\nset\r\n$5\r\ntestv\r\n$4\r\n1234\r\n", expected: []any{"set", "testv", "1234"}, hasError: false},
+		{input: "*3\r\n$3\r\nset\r\n$5\r\ntestv\r\n$4\r\n1234\r\n", expected: []any{"set", "testv", 1234}, hasError: false},
 		{input: "+NoEndLine", expected: nil, hasError: true},
 		{input: "", expected: nil, hasError: true},
+		{input: ":1000\r\n", expected: 1000, hasError: false},
+		{input: "*-1\r\n", expected: nil, hasError: false},
+		{input: "*2\r\n$3\r\nfoo\r\n$3\r\nbar\r\n", expected: []any{"foo", "bar"}, hasError: false},
+		{input: "*2\r\n:1\r\n:2\r\n", expected: []any{1, 2}, hasError: false},
+		{input: "*2\r\n$3\r\nfoo\r\n:42\r\n", expected: []any{"foo", 42}, hasError: false},
+		{input: "*3\r\n$3\r\nfoo\r\n$-1\r\n$3\r\nbar\r\n", expected: []any{"foo", nil, "bar"}, hasError: false},
 	}
 
 	for _, tc := range testCases {
@@ -59,6 +65,9 @@ func TestSerializeRESP(t *testing.T) {
 		{input: []byte(""), expected: "$-1\r\n"},
 		{input: []any{}, expected: "*0\r\n"},                                                     // Empty array
 		{input: []any{"foo", []any{"bar", 42}}, expected: "*2\r\n+foo\r\n*2\r\n+bar\r\n:42\r\n"}, // Nested array
+		{input: "hello", expected: "+hello\r\n"},
+		{input: -1, expected: ":-1\r\n"},
+		{input: []any{"foo", nil, "bar"}, expected: "*3\r\n+foo\r\n$-1\r\n+bar\r\n"},
 
 		// Invalid cases
 		{input: struct{}{}, expected: "-unsupported RESP type\r\n"}, // Unsupported type

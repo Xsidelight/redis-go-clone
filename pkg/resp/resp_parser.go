@@ -6,116 +6,156 @@ import (
 	"strings"
 )
 
-// DeserializeRESP parses a RESP-encoded string and returns the corresponding Go value.
 func DeserializeRESP(input string) (any, error) {
-	switch {
-	case strings.HasPrefix(input, "+"):
-		return parseSimpleString(input)
-	case strings.HasPrefix(input, "-"):
-		return parseError(input)
-	case strings.HasPrefix(input, ":"):
-		return parseInteger(input)
-	case strings.HasPrefix(input, "$"):
-		return parseBulkString(input)
-	case strings.HasPrefix(input, "*"):
-		return parseArray(input)
+	value, _, err := parseOneValue(input)
+	return value, err
+}
+
+// parseOneValue reads a single RESP value from `input` and returns:
+// - the parsed Go value
+// - the remaining unconsumed part of `input`
+// - any error
+func parseOneValue(input string) (any, string, error) {
+	// Ensure we have something
+	if len(input) == 0 {
+		return nil, "", errors.New("empty input")
+	}
+
+	switch input[0] {
+	case '+': // Simple string
+		return parseSimpleStringValue(input)
+	case '-': // Error
+		return parseErrorValue(input)
+	case ':': // Integer
+		return parseIntegerValue(input)
+	case '$': // Bulk string
+		return parseBulkStringValue(input)
+	case '*': // Array
+		return parseArrayValue(input)
 	default:
-		return nil, errors.New("unsupported RESP type")
+		return nil, "", errors.New("unsupported RESP type")
 	}
 }
 
-// parseSimpleString parses a RESP Simple String.
-func parseSimpleString(input string) (string, error) {
-	if !strings.HasSuffix(input, "\r\n") {
-		return "", errors.New("invalid RESP format for simple string")
+// parseSimpleStringValue returns (string, leftover, error).
+func parseSimpleStringValue(input string) (any, string, error) {
+	endIdx := strings.Index(input, "\r\n")
+	if endIdx == -1 {
+		return nil, "", errors.New("invalid RESP format for simple string")
 	}
-	return strings.TrimSuffix(input[1:], "\r\n"), nil
+	// e.g. +OK\r\n => "OK"
+	value := input[1:endIdx]
+	remaining := input[endIdx+2:]
+	return value, remaining, nil
 }
 
-// parseError parses a RESP Error.
-func parseError(input string) (string, error) {
-	if !strings.HasSuffix(input, "\r\n") {
-		return "", errors.New("invalid RESP format for error")
+// parseErrorValue is similar to parseSimpleStringValue but returns the error message (string).
+func parseErrorValue(input string) (any, string, error) {
+	endIdx := strings.Index(input, "\r\n")
+	if endIdx == -1 {
+		return nil, "", errors.New("invalid RESP format for error")
 	}
-	return strings.TrimSuffix(input[1:], "\r\n"), nil
+	value := input[1:endIdx]
+	remaining := input[endIdx+2:]
+	return value, remaining, nil
 }
 
-// parseInteger parses a RESP Integer.
-func parseInteger(input string) (int, error) {
-	if !strings.HasSuffix(input, "\r\n") {
-		return 0, errors.New("invalid RESP format for integer")
+// parseIntegerValue parses RESP integer like `:42\r\n`.
+func parseIntegerValue(input string) (any, string, error) {
+	endIdx := strings.Index(input, "\r\n")
+	if endIdx == -1 {
+		return nil, "", errors.New("invalid RESP format for integer")
 	}
-	valueStr := strings.TrimSuffix(input[1:], "\r\n")
-	value, err := strconv.Atoi(valueStr)
+
+	valueStr := input[1:endIdx]
+	remaining := input[endIdx+2:]
+
+	v, err := strconv.Atoi(valueStr)
 	if err != nil {
-		return 0, errors.New("invalid integer value")
+		return nil, "", errors.New("invalid integer value")
 	}
-	return value, nil
+	return v, remaining, nil
 }
 
-// parseBulkString parses a RESP Bulk String.
-func parseBulkString(input string) (any, error) {
-	parts := strings.SplitN(input, "\r\n", 2)
-	if len(parts) < 2 {
-		return nil, errors.New("invalid RESP format for bulk string")
+// parseBulkStringValue parses `$<length>\r\n<content>\r\n`
+func parseBulkStringValue(input string) (any, string, error) {
+	// 1) find the first line up to \r\n
+	firstLineEnd := strings.Index(input, "\r\n")
+	if firstLineEnd == -1 {
+		return nil, "", errors.New("invalid RESP format for bulk string length")
 	}
 
-	length, err := strconv.Atoi(parts[0][1:])
+	// "$4\r\n1234\r\n..."
+	lengthStr := input[1:firstLineEnd] // the part after '$' but before "\r\n"
+	length, err := strconv.Atoi(lengthStr)
 	if err != nil {
-		return nil, errors.New("invalid bulk string length")
+		return nil, "", errors.New("invalid bulk string length")
 	}
+
+	remaining := input[firstLineEnd+2:] // move past "$4\r\n"
 
 	if length == -1 {
-		return nil, nil
+		// $-1\r\n => nil
+		return nil, remaining, nil
 	}
 
-	if len(parts[1]) < length+2 || !strings.HasSuffix(parts[1][:length+2], "\r\n") {
-		return nil, errors.New("invalid bulk string content")
+	// We must have at least `length` characters + 2 bytes for the trailing "\r\n"
+	if len(remaining) < length+2 {
+		return nil, "", errors.New("not enough data for bulk string")
 	}
 
-	return parts[1][:length], nil
+	content := remaining[:length]
+	trailer := remaining[length : length+2]
+	if trailer != "\r\n" {
+		return nil, "", errors.New("invalid bulk string trailer")
+	}
+
+	newRemaining := remaining[length+2:]
+
+	// Attempt to parse content as int
+	if intVal, err := strconv.Atoi(content); err == nil {
+		return intVal, newRemaining, nil
+	}
+
+	// Else store as string
+	return content, newRemaining, nil
 }
 
-// parseArray parses a RESP Array.
-func parseArray(input string) ([]any, error) {
-	header := strings.SplitN(input, "\r\n", 2)
-	if len(header) < 2 {
-		return nil, errors.New("invalid RESP format for array")
+// parseArrayValue parses `*3\r\n...`
+func parseArrayValue(input string) (any, string, error) {
+	// 1) find the first line up to \r\n
+	firstLineEnd := strings.Index(input, "\r\n")
+	if firstLineEnd == -1 {
+		return nil, "", errors.New("invalid RESP format for array")
 	}
 
-	count, err := strconv.Atoi(header[0][1:])
-	if err != nil || count < -1 {
-		return nil, errors.New("invalid array count")
+	// "*3\r\n..."
+	countStr := input[1:firstLineEnd] // the part after '*' but before "\r\n"
+	count, err := strconv.Atoi(countStr)
+	if err != nil {
+		return nil, "", errors.New("invalid array count")
 	}
+
+	remaining := input[firstLineEnd+2:] // move past "*3\r\n"
 
 	if count == -1 {
-		return nil, nil
+		// *-1 => nil array
+		return nil, remaining, nil
 	}
 
 	elements := make([]any, 0, count)
-	remaining := header[1]
 
+	// Parse each element
 	for i := 0; i < count; i++ {
-		element, err := DeserializeRESP(remaining)
+		val, newRem, err := parseOneValue(remaining)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
-		elements = append(elements, element)
-
-		// Adjust the remaining input based on parsed element
-		switch v := element.(type) {
-		case string:
-			remaining = strings.TrimPrefix(remaining, serializeBulkString(v))
-		case []any:
-			remaining = strings.TrimPrefix(remaining, serializeArray(v))
-		case int:
-			remaining = strings.TrimPrefix(remaining, serializeInteger(v))
-		default:
-			return nil, errors.New("unsupported element type in array")
-		}
+		elements = append(elements, val)
+		remaining = newRem
 	}
 
-	return elements, nil
+	return elements, remaining, nil
 }
 
 func SerializeRESP(data any, isGet bool) string {
