@@ -19,9 +19,6 @@ func NewClientHandler(config *config.Config) *ClientHandler {
 	return &ClientHandler{config: config}
 }
 
-var storedData = make(map[string]model.StoredData)
-var mu sync.RWMutex
-
 func (h *ClientHandler) HandleClient(conn net.Conn) {
 	defer conn.Close()
 
@@ -43,12 +40,12 @@ func (h *ClientHandler) HandleClient(conn net.Conn) {
 		}
 
 		// Process the command
-		response := processCommand(command)
+		response := processCommand(command, h.config.DB, h.config.Lock)
 		conn.Write([]byte(response))
 	}
 }
 
-func processCommand(command any) string {
+func processCommand(command any, db map[string]model.StoredData, mu *sync.RWMutex) string {
 	// Ensure the command is an array
 	cmdArray, ok := command.([]any)
 	if !ok || len(cmdArray) == 0 {
@@ -65,21 +62,23 @@ func processCommand(command any) string {
 	// Handle supported commands
 	switch cmdName {
 	case "SET":
-		return redis_command.Set(cmdArray, storedData, &mu)
+		return redis_command.Set(cmdArray, db, mu)
 	case "GET":
-		return redis_command.Get(cmdArray, storedData, &mu)
+		return redis_command.Get(cmdArray, db, mu)
 	case "EXIST":
-		return redis_command.Exist(cmdArray, storedData, &mu)
+		return redis_command.Exist(cmdArray, db, mu)
 	case "DEL":
-		return redis_command.Del(cmdArray, storedData, &mu)
+		return redis_command.Del(cmdArray, db, mu)
 	case "LPUSH":
-		return redis_command.LPush(cmdArray, storedData, &mu)
+		return redis_command.LPush(cmdArray, db, mu)
 	case "RPUSH":
-		return redis_command.RPush(cmdArray, storedData, &mu)
+		return redis_command.RPush(cmdArray, db, mu)
 	case "INCR":
-		return redis_command.Incr(cmdArray, storedData, &mu)
+		return redis_command.Incr(cmdArray, db, mu)
 	case "DECR":
-		return redis_command.Decr(cmdArray, storedData, &mu)
+		return redis_command.Decr(cmdArray, db, mu)
+	case "SAVE":
+		return redis_command.Save(cmdArray, db, mu)
 	default:
 		return "-ERR unknown command\r\n"
 	}

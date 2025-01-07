@@ -13,6 +13,8 @@ import (
 func StartServer() {
 	config := config.NewConfig()
 
+	manager.LoadData(config.DB, config.Lock)
+
 	manager.StartBackgroundExpiryManager(config.DB, config.Lock, 1*time.Second)
 
 	h := handler.NewClientHandler(config)
