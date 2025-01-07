@@ -4,40 +4,59 @@ This project is a Redis clone implemented in Go. It was created as a solution to
 
 ## Features
 
-- Basic Redis commands (GET, SET, DEL, etc.)
-- In-memory data storage
-- Simple networking protocol implementation
+- **Core Commands:**
+  - `SET`: Set the string value of a key.
+  - `GET`: Get the value of a key.
+  - `DEL`: Delete one or more keys.
+  - `EXIST`: Check if a key exists.
+  - `LPUSH`: Prepend one or multiple values to a list.
+  - `RPUSH`: Append one or multiple values to a list.
+  - `INCR`: Increment the integer value of a key by one.
+  - `DECR`: Decrement the integer value of a key by one.
+  - `SAVE`: Persist the current database state to disk.
 
-## Getting Started
+- **Persistence:**
+  - **SAVE:** Save the in-memory database state to a JSON file (`data.json`).
+  - **LOAD:** Automatically load the database state from `data.json` on startup.
+
+- **Concurrency:**
+  - Thread-safe operations using `sync.RWMutex`.
+
+- **Testing:**
+  - Comprehensive unit tests for all commands and functionalities.
+
+## Installation
 
 ### Prerequisites
 
-- Go 1.16 or higher
+- **Go:** Version 1.16 or higher.
 
-### Installation
+### Steps
 
-Clone the repository:
+1. **Clone the Repository:**
 
-```sh
-git clone https://github.com/yourusername/redis-go-clone.git
-cd redis-go-clone
-```
+    ```sh
+    git clone https://github.com/yourusername/redis-go-clone.git
+    cd redis-go-clone
+    ```
 
-Build the project:
+2. **Build the Project:**
 
-```sh
-go build
-```
+    ```sh
+    go build
+    ```
 
-Run the server:
+3. **Run the Server:**
 
-```sh
-./redis-go-clone
-```
+    ```sh
+    ./redis-go-clone
+    ```
 
-### Usage
+    The server listens on port `6379` by default.
 
-Connect to the server using a Redis client:
+## Usage
+
+Connect to the server using a Redis client, such as `redis-cli`:
 
 ```sh
 redis-cli -h localhost -p 6379
